@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toolbox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--card:#fff8ed;--ink:#162b36;--muted:#5f6f76;--accent:#c24428;--accent-soft:#ffd7cb;--line:#e3d6c2;--surface:rgba(255,248,237,.8);--surface-border:rgba(227,214,194,.7);--hero-a:rgba(255,215,203,.7);--hero-b:rgba(255,248,237,.8);--chip-bg:#fffdf8;--hover-line:#c9b79f;--card-soft:rgba(255,248,237,.85);--shadow:0 18px 45px rgba(28,35,40,.12)}
+    *{box-sizing:border-box}
+    html,body{scrollbar-width:none;min-height:100%}
+    html{background:radial-gradient(circle at 10% 20%,rgba(194,68,40,.2),transparent 42%),radial-gradient(circle at 90% 80%,rgba(47,143,87,.16),transparent 40%),linear-gradient(160deg,#f7efe3 0%,#efe5d7 100%);background-attachment:fixed}
+    body::-webkit-scrollbar{display:none}
+    body{margin:0;font-family:'Space Grotesk',sans-serif;color:var(--ink);background:transparent;padding:24px}
+    .wrap{max-width:1120px;margin:0 auto}
+    .hero{background:var(--surface);border:1px solid var(--surface-border);border-radius:22px;backdrop-filter:blur(4px);box-shadow:var(--shadow);padding:28px;margin-bottom:20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;animation:fadeUp 500ms ease-out}
+    .kicker{margin:0;text-transform:uppercase;letter-spacing:.1em;font-size:.77rem;color:var(--muted);font-weight:700}
+    h1{margin:8px 0 0;font-family:'Fraunces',serif;font-size:clamp(1.7rem,2.6vw,2.4rem);line-height:1.15}
+    .search-wrap{position:relative}
+    .search-wrap input{border:1px solid var(--line);border-radius:999px;padding:10px 18px 10px 38px;font-size:.9rem;font-family:'Space Grotesk',sans-serif;color:var(--ink);background:var(--chip-bg);outline:none;width:260px;transition:border-color 130ms ease}
+    .search-wrap input:focus{border-color:var(--accent)}
+    .search-wrap::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.85rem}
+    .group-label{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--muted);margin:24px 0 10px}
+    .tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+    .tool-card{border:1px solid var(--line);background:var(--card-soft);border-radius:14px;padding:16px;animation:riseIn 280ms ease both;text-decoration:none;color:var(--ink);display:block;transition:transform 150ms ease,box-shadow 150ms ease}
+    .tool-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(28,35,40,.12)}
+    .badge{display:inline-block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:2px 10px;margin-bottom:8px}
+    .t-name{font-weight:700;font-size:1rem;margin:0 0 4px}
+    .t-desc{font-size:.83rem;color:var(--muted);margin:0;line-height:1.4}
+    [hidden]{display:none!important}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes riseIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @media(max-width:600px){body{padding:12px}}
+    .site-footer{text-align:center;padding:18px 24px;font-size:.78rem;color:var(--muted);margin-top:8px}</style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <p class="kicker"></p>
+        <h1>Toolbox</h1>
+      </div>
+      <div class="search-wrap">
+        <input type="search" id="s" placeholder="Search tools...">
+      </div>
+    </section>
+    <div id="catalog">
+    <p class="group-label" data-gl=" "> </p>
+    <div class="tool-grid" data-group=" ">
+      <a class="tool-card" href="https://tgdossey.github.io/toolbox/COMP.html" data-name="Rewards Calculator" data-type=" ">
+        <span class="badge"> </span>
+        <p class="t-name">Rewards Calculator</p>
+        <p class="t-desc">Lightweight Commission Calculator.</p>
+      </a></div>
+    </div>
+  </div>
+  <footer class="site-footer">Created with ToolBox</footer>
+  <script id="toolbox-state" type="application/json">{"template":"catalog","theme":"parchment","title":"Toolbox","kicker":"","activeTab":0,"activeCategory":0,"tabs":[],"tools":[{"name":"Rewards Calculator","type":" ","description":"Lightweight Commission Calculator.","url":"https://tgdossey.github.io/toolbox/COMP.html"}]}<\/script>
+  <script>
+    const inp=document.getElementById('s');
+    inp.addEventListener('input',()=>{
+      const q=inp.value.toLowerCase().trim();
+      document.querySelectorAll('.tool-card').forEach(c=>{
+        c.hidden=!!q&&!c.dataset.name.toLowerCase().includes(q)&&!c.dataset.type.toLowerCase().includes(q);
+      });
+      document.querySelectorAll('[data-group]').forEach(g=>{
+        const vis=[...g.querySelectorAll('.tool-card')].some(c=>!c.hidden);
+        g.hidden=!vis;
+        const lbl=document.querySelector('[data-gl="'+g.dataset.group+'"]');
+        if(lbl)lbl.hidden=!vis;
+      });
+    });</script>
+</body>
+</html>
