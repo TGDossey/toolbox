@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commission Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #ffffff;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 2px solid #0d1b6e;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 8px 32px rgba(13,27,110,0.12);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a7a3c;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    .subtitle {
+      font-size: 0.82rem;
+      color: #555;
+      margin-bottom: 28px;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 10px 14px;
+      background: #f8f9ff;
+      border: 1.5px solid #0d1b6e;
+      border-radius: 8px;
+      color: #1a1a1a;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="number"]:focus {
+      border-color: #1a7a3c;
+    }
+
+    input[type="number"]::placeholder {
+      color: #aaa;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      background: #f8f9ff;
+      border: 1.5px solid #0d1b6e;
+      border-radius: 8px;
+      color: #1a1a1a;
+      font-size: 1rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%230d1b6e' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+    }
+
+    select:focus {
+      border-color: #1a7a3c;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #777;
+      margin-top: 4px;
+    }
+
+    .line-items-header {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .line-item {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto auto;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: flex-end;
+    }
+
+    .line-item input[type="number"] {
+      margin: 0;
+    }
+
+    .line-item-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .line-item-btn {
+      width: 32px;
+      padding: 8px;
+      background: #1a7a3c;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      line-height: 1;
+    }
+
+    .line-item-btn:hover { background: #145f2e; }
+    .line-item-btn.remove { background: #a00000; }
+    .line-item-btn.remove:hover { background: #7d0000; }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #1a7a3c;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    button:hover { background: #145f2e; }
+    button:active { transform: scale(0.98); }
+
+    .add-item-btn {
+      background: #0d1b6e;
+      margin-top: 10px;
+      margin-bottom: 18px;
+      width: 100%;
+    }
+
+    .add-item-btn:hover { background: #091147; }
+
+    .results {
+      margin-top: 28px;
+      display: none;
+    }
+
+    .results.visible { display: block; }
+
+    .results h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #1a7a3c;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    tr { border-bottom: 1px solid #c8d0ee; }
+    tr:last-child { border-bottom: none; }
+
+    td {
+      padding: 10px 4px;
+      color: #333;
+    }
+
+    td:last-child {
+      text-align: right;
+      color: #1a1a1a;
+      font-weight: 600;
+    }
+
+    .highlight td {
+      color: #1a1a1a;
+    }
+
+    .highlight td:last-child {
+      color: #1a7a3c;
+      font-size: 1.1rem;
+    }
+
+    .tier-badge {
+      display: inline-block;
+      background: #eef1fb;
+      border: 1px solid #0d1b6e;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
+      color: #0d1b6e;
+      margin-left: 8px;
+      font-weight: 400;
+      vertical-align: middle;
+    }
+
+    .divider {
+      border: none;
+      border-top: 2px solid #0d1b6e;
+      margin: 8px 0;
+    }
+
+    .error {
+      color: #b00020;
+      font-size: 0.82rem;
+      margin-top: 8px;
+      display: none;
+    }
+    .error.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Commission Calculator</h1>
+    <p class="subtitle">Base commission + product premium breakdown</p>
+
+    <div class="field">
+      <div class="line-items-header">Sale Items</div>
+      <div id="lineItemsContainer"></div>
+      <button type="button" class="add-item-btn" onclick="addLineItem()">+ Add Item</button>
+    </div>
+
+    <div class="field">
+      <label>Product Premium Rate (%)</label>
+      <input type="number" id="premiumRate" placeholder="e.g. 2" min="0" max="100" step="0.01" />
+      <p class="hint">Leave blank or enter 0 if no product premium applies.</p>
+    </div>
+
+    <div class="field">
+      <label>FirmCare Kickback</label>
+      <select id="firmcare">
+        <option value="0">None</option>
+        <option value="15">5-Year FirmCare (+$15.00)</option>
+        <option value="25">10-Year FirmCare (+$25.00)</option>
+      </select>
+    </div>
+
+    <p class="error" id="errorMsg"></p>
+
+    <button onclick="calculate()">Calculate</button>
+
+    <div class="results" id="results">
+      <h2>Breakdown</h2>
+      <table>
+        <tbody id="breakdownBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let lineItemCount = 0;
+
+    function initLineItems() {
+      const container = document.getElementById('lineItemsContainer');
+      container.innerHTML = '';
+      lineItemCount = 0;
+      addLineItem();
+    }
+
+    function addLineItem() {
+      lineItemCount++;
+      const container = document.getElementById('lineItemsContainer');
+      const itemId = lineItemCount;
+      
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'line-item';
+      itemDiv.id = 'lineItem-' + itemId;
+      itemDiv.innerHTML = `
+        <input type="number" class="line-item-topline" placeholder="Sale $" step="0.01" data-id="${itemId}" />
+        <input type="number" class="line-item-cost" placeholder="Cost $" min="0" step="0.01" data-id="${itemId}" />
+        <div class="line-item-actions">
+          <button type="button" class="line-item-btn remove" onclick="removeLineItem(${itemId})">−</button>
+        </div>
+      `;
+      container.appendChild(itemDiv);
+    }
+
+    function removeLineItem(itemId) {
+      const container = document.getElementById('lineItemsContainer');
+      if (container.children.length > 1) {
+        document.getElementById('lineItem-' + itemId).remove();
+      }
+    }
+
+    function getCommissionRate(marginPercent) {
+      if (marginPercent >= 47.50) return { rate: 18, tier: 'Tier 3 (≥47.50%)' };
+      if (marginPercent >= 43.00) return { rate: 14, tier: 'Tier 2 (43.00–47.49%)' };
+      return { rate: 10, tier: 'Tier 1 (≤42.99%)' };
+    }
+
+    function fmt(n) {
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtPct(n) {
+      return n.toFixed(2) + '%';
+    }
+
+    function row(label, value, highlight) {
+      const tr = document.createElement('tr');
+      if (highlight) tr.classList.add('highlight');
+      tr.innerHTML = `<td>${label}</td><td>${value}</td>`;
+      return tr;
+    }
+
+    function dividerRow() {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="2"><hr class="divider" /></td>`;
+      tr.style.border = 'none';
+      return tr;
+    }
+
+    function calculate() {
+      const errorEl = document.getElementById('errorMsg');
+      const resultsEl = document.getElementById('results');
+      const body = document.getElementById('breakdownBody');
+
+      errorEl.classList.remove('visible');
+      resultsEl.classList.remove('visible');
+      body.innerHTML = '';
+
+      const toplineInputs = document.querySelectorAll('.line-item-topline');
+      const costInputs = document.querySelectorAll('.line-item-cost');
+      const premiumRateInput = document.getElementById('premiumRate').value.trim();
+      const premiumRate = premiumRateInput === '' ? 0 : parseFloat(premiumRateInput);
+      const firmcareKickback = parseFloat(document.getElementById('firmcare').value);
+
+      let topline = 0, cost = 0;
+      const items = [];
+
+      for (let i = 0; i < toplineInputs.length; i++) {
+        const saleVal = toplineInputs[i].value.trim();
+        const costVal = costInputs[i].value.trim();
+
+        const sale = saleVal === '' ? 0 : parseFloat(saleVal);
+        const itemCost = costVal === '' ? 0 : parseFloat(costVal);
+
+        if (isNaN(sale) || isNaN(itemCost)) {
+          errorEl.textContent = 'Please enter valid numbers in all Sale Items fields.';
+          errorEl.classList.add('visible');
+          return;
+        }
+
+        if (itemCost < 0) {
+          errorEl.textContent = 'Cost cannot be negative.';
+          errorEl.classList.add('visible');
+          return;
+        }
+
+        if (sale > 0 || itemCost > 0) {
+          items.push({ sale, cost: itemCost });
+          topline += sale;
+          cost += itemCost;
+        }
+      }
+
+      if (topline <= 0) {
+        errorEl.textContent = 'Please enter at least one sale amount greater than zero.';
+        errorEl.classList.add('visible');
+        return;
+      }
+
+      if (isNaN(premiumRate) || premiumRate < 0) {
+        errorEl.textContent = 'Product Premium Rate must be a non-negative number.';
+        errorEl.classList.add('visible');
+        return;
+      }
+
+      const marginDollars = topline - cost;
+      const marginPercent = (marginDollars / topline) * 100;
+      const { rate, tier } = getCommissionRate(marginPercent);
+      const baseCommission = marginDollars * (rate / 100);
+      const productPremium = marginDollars * (premiumRate / 100);
+      const totalCommission = baseCommission + productPremium + firmcareKickback;
+
+      // Show each item in breakdown
+      items.forEach((item, idx) => {
+        body.appendChild(row(`Item ${idx + 1} — Sale`, fmt(item.sale)));
+        body.appendChild(row(`Item ${idx + 1} — Cost`, fmt(item.cost)));
+      });
+
+      body.appendChild(dividerRow());
+      body.appendChild(row('Whole Sale Topline', fmt(topline)));
+      body.appendChild(row('Whole Sale Cost', fmt(cost)));
+      body.appendChild(row('Margin Dollars', fmt(marginDollars)));
+      body.appendChild(row('Margin Percent', fmtPct(marginPercent)));
+      body.appendChild(dividerRow());
+      body.appendChild(row(
+        'Base Commission Rate <span class="tier-badge">' + tier + '</span>',
+        fmtPct(rate)
+      ));
+      body.appendChild(row('Base Commission', fmt(baseCommission)));
+
+      if (premiumRate > 0) {
+        body.appendChild(row('Product Premium Rate', fmtPct(premiumRate)));
+        body.appendChild(row('Product Premium', fmt(productPremium)));
+      }
+
+      if (firmcareKickback > 0) {
+        const firmcareLabel = firmcareKickback === 25 ? '10-Year FirmCare Kickback' : '5-Year FirmCare Kickback';
+        body.appendChild(row(firmcareLabel, fmt(firmcareKickback)));
+      }
+
+      body.appendChild(dividerRow());
+      body.appendChild(row('Total Commission', fmt(totalCommission), true));
+
+      resultsEl.classList.add('visible');
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') calculate();
+    });
+
+    // Initialize on page load
+    window.addEventListener('load', initLineItems);
+  </script>
+</body>
+</html>
