@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Studio — Layer Editor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --surface: #0f3460;
+    --accent: #e94560;
+    --accent2: #53d8fb;
+    --text: #e0e0f0;
+    --text-dim: #8888aa;
+    --border: #2a2a4a;
+    --tool-size: 40px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    height: 48px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; padding: 0 16px; flex-shrink: 0;
+  }
+  #topbar h1 { font-size: 15px; font-weight: 700; color: var(--accent2); letter-spacing: .5px; margin-right: 8px; }
+  .tb-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: all .15s;
+  }
+  .tb-btn:hover { background: var(--accent); border-color: var(--accent); }
+  #pageNav { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  #pageNav span { color: var(--text-dim); font-size: 12px; }
+  #zoomDisplay { color: var(--accent2); font-size: 12px; min-width: 50px; text-align: center; }
+
+  /* ── MAIN LAYOUT ── */
+  #app { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── LEFT TOOLBAR ── */
+  #toolbar {
+    width: 52px; background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 3px; overflow-y: auto; flex-shrink: 0;
+  }
+  .tool-sep { width: 32px; height: 1px; background: var(--border); margin: 4px 0; }
+  .tool-btn {
+    width: var(--tool-size); height: var(--tool-size); border-radius: 8px;
+    background: transparent; border: 1px solid transparent; color: var(--text-dim);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; transition: all .15s; position: relative;
+  }
+  .tool-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .tool-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tool-btn title { display: none; }
+
+  /* ── CANVAS AREA ── */
+  #canvasArea {
+    flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center;
+    background: #111122; padding: 24px;
+  }
+  #canvasWrapper {
+    position: relative; box-shadow: 0 8px 40px rgba(0,0,0,.7); cursor: crosshair;
+  }
+  #pdfCanvas { display: block; }
+  #overlayCanvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  #drawingCanvas { position: absolute; top: 0; left: 0; }
+
+  /* ── RIGHT PANEL ── */
+  #rightPanel {
+    width: 240px; background: var(--panel); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+  }
+  .panel-section { border-bottom: 1px solid var(--border); padding: 10px; }
+  .panel-label { font-size: 10px; font-weight: 700; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+
+  /* Tool options */
+  #toolOptions { flex-shrink: 0; }
+  .opt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .opt-row label { color: var(--text-dim); font-size: 11px; min-width: 52px; }
+  .opt-row input[type=range] { flex: 1; accent-color: var(--accent2); }
+  .opt-row input[type=color] { width: 32px; height: 24px; border: 1px solid var(--border); border-radius: 4px; padding: 1px; background: transparent; cursor: pointer; }
+  .opt-row select { flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 3px; border-radius: 4px; font-size: 11px; }
+  .opt-row input[type=text], .opt-row input[type=number] {
+    flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 3px 6px; border-radius: 4px; font-size: 11px;
+  }
+  .val-display { font-size: 11px; color: var(--accent2); min-width: 28px; text-align: right; }
+
+  /* Fill/stroke toggle */
+  .shape-opts { display: flex; gap: 6px; }
+  .shape-opt-btn { flex: 1; padding: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; font-size: 11px; text-align: center; }
+  .shape-opt-btn.active { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── LAYERS PANEL ── */
+  #layersPanel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #layersHeader { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #layersHeader .panel-label { margin: 0; flex: 1; }
+  .icon-btn { width: 24px; height: 24px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { color: var(--accent2); border-color: var(--accent2); }
+  #layersList { flex: 1; overflow-y: auto; padding: 4px; }
+
+  .layer-item {
+    display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px;
+    cursor: pointer; border: 1px solid transparent; margin-bottom: 2px; transition: all .1s; user-select: none;
+  }
+  .layer-item:hover { background: var(--surface); }
+  .layer-item.selected { background: rgba(83,216,251,.12); border-color: var(--accent2); }
+  .layer-item.group-item { padding-left: 18px; }
+  .layer-vis { font-size: 14px; cursor: pointer; color: var(--text-dim); flex-shrink: 0; }
+  .layer-vis:hover { color: var(--text); }
+  .layer-thumb { width: 28px; height: 22px; background: #fff2; border-radius: 3px; overflow: hidden; flex-shrink: 0; position: relative; }
+  .layer-thumb canvas { width: 100%; height: 100%; }
+  .layer-name { flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer-name input { background: transparent; border: none; color: var(--text); font-size: 11px; width: 100%; outline: none; border-bottom: 1px solid var(--accent2); }
+  .layer-type-icon { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+
+  /* Group indicator */
+  .group-header { background: rgba(233,69,96,.08); border-color: rgba(233,69,96,.25) !important; }
+  .group-header .layer-name { color: var(--accent); }
+
+  /* Layer context menu */
+  #layerMenu {
+    position: fixed; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 4px; z-index: 1000; display: none; min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .menu-item { padding: 7px 12px; cursor: pointer; border-radius: 5px; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .menu-item:hover { background: var(--surface); }
+  .menu-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+  /* ── TEXT INPUT OVERLAY ── */
+  #textInput {
+    position: absolute; background: transparent; border: 1px dashed var(--accent2);
+    color: var(--text); font-size: 16px; min-width: 100px; min-height: 28px;
+    outline: none; padding: 2px 4px; display: none; resize: none; overflow: hidden;
+    line-height: 1.4; z-index: 10; word-break: break-word;
+  }
+
+  /* ── UPLOAD SCREEN ── */
+  #uploadScreen {
+    position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px; z-index: 500;
+  }
+  #uploadScreen h2 { font-size: 28px; color: var(--accent2); font-weight: 700; }
+  #uploadScreen p { color: var(--text-dim); font-size: 14px; }
+  #dropZone {
+    width: 420px; height: 200px; border: 2px dashed var(--border); border-radius: 16px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    cursor: pointer; transition: all .2s; background: rgba(255,255,255,.02);
+  }
+  #dropZone:hover, #dropZone.drag-over { border-color: var(--accent2); background: rgba(83,216,251,.05); }
+  #dropZone .drop-icon { font-size: 48px; }
+  #dropZone p { color: var(--text-dim); font-size: 14px; }
+  #fileInput { display: none; }
+  .upload-btn { background: var(--accent); border: none; color: #fff; padding: 10px 28px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .upload-btn:hover { filter: brightness(1.1); }
+
+  /* ── MISC ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .hidden { display: none !important; }
+
+  #statusBar {
+    height: 24px; background: var(--panel); border-top: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 16px; flex-shrink: 0;
+  }
+  #statusBar span { font-size: 11px; color: var(--text-dim); }
+  #statusMsg { color: var(--accent2); }
+
+  .progress-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center;
+    justify-content: center; z-index: 999; flex-direction: column; gap: 16px;
+  }
+  .progress-box { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px 40px; text-align: center; }
+  .progress-box p { color: var(--text); margin-bottom: 12px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent2); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Upload Screen -->
+<div id="uploadScreen">
+  <h2> PDF Studio</h2>
+  <p>Open a PDF to start editing with layers, brushes, shapes & text</p>
+  <div id="dropZone">
+    <div class="drop-icon"></div>
+    <p>Drop a PDF here or click to browse</p>
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">Choose PDF</button>
+  </div>
+  <input type="file" id="fileInput" accept=".pdf">
+  <p style="color:var(--text-dim);font-size:12px;">All editing happens in your browser — nothing is uploaded.</p>
+</div>
+
+<!-- Main App -->
+<div id="topbar">
+  <h1>PDF Studio</h1>
+  <button class="tb-btn" onclick="document.getElementById('fileInput').click()">Open PDF</button>
+  <button class="tb-btn" id="btnUndo" onclick="undo()">↩ Undo</button>
+  <button class="tb-btn" id="btnRedo" onclick="redo()">↪ Redo</button>
+  <div class="tool-sep" style="width:1px;height:24px;display:inline-block;background:var(--border);"></div>
+  <button class="tb-btn" onclick="flattenAndDownload()">⬇ Download PDF</button>
+  <div id="pageNav">
+    <button class="tb-btn" onclick="changePage(-1)">‹</button>
+    <span id="pageInfo">Page 1 / 1</span>
+    <button class="tb-btn" onclick="changePage(1)">›</button>
+    <button class="tb-btn" onclick="zoom(-0.25)">−</button>
+    <span id="zoomDisplay">100%</span>
+    <button class="tb-btn" onclick="zoom(0.25)">+</button>
+  </div>
+</div>
+
+<div id="app">
+  <!-- Left Toolbar -->
+  <div id="toolbar">
+    <button class="tool-btn active" id="tool-select" onclick="setTool('select')" title="Select / Move (V)">⊹</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-brush" onclick="setTool('brush')" title="Brush (B)">🖌</button>
+    <button class="tool-btn" id="tool-pencil" onclick="setTool('pencil')" title="Pencil (P)">✏️</button>
+    <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser (E)">◻</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-text" onclick="setTool('text')" title="Text (T)">T</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-rect" onclick="setTool('rect')" title="Rectangle (R)">▭</button>
+    <button class="tool-btn" id="tool-ellipse" onclick="setTool('ellipse')" title="Ellipse (O)">◯</button>
+    <button class="tool-btn" id="tool-line" onclick="setTool('line')" title="Line (L)">╱</button>
+    <button class="tool-btn" id="tool-arrow" onclick="setTool('arrow')" title="Arrow (A)">↗</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-fill" onclick="setTool('fill')" title="Fill">🪣</button>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvasArea">
+    <div id="canvasWrapper">
+      <canvas id="pdfCanvas"></canvas>
+      <canvas id="overlayCanvas"></canvas>
+      <canvas id="drawingCanvas"></canvas>
+      <textarea id="textInput" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="rightPanel">
+    <!-- Tool Options -->
+    <div class="panel-section" id="toolOptions">
+      <div class="panel-label">Tool Options</div>
+      <div class="opt-row">
+        <label>Color</label>
+        <input type="color" id="optColor" value="#e94560">
+        <input type="color" id="optFill" value="#e94560" title="Fill color">
+      </div>
+      <div class="opt-row">
+        <label>Size</label>
+        <input type="range" id="optSize" min="1" max="80" value="6" oninput="document.getElementById('sizeVal').textContent=this.value">
+        <span class="val-display" id="sizeVal">6</span>
+      </div>
+      <div class="opt-row">
+        <label>Opacity</label>
+        <input type="range" id="optOpacity" min="5" max="100" value="100" oninput="document.getElementById('opacityVal').textContent=this.value+'%'">
+        <span class="val-display" id="opacityVal">100%</span>
+      </div>
+      <div class="opt-row" id="brushStyleRow">
+        <label>Style</label>
+        <select id="optBrushStyle">
+          <option value="round">Round</option>
+          <option value="square">Square</option>
+          <option value="spray">Spray</option>
+        </select>
+      </div>
+      <div id="shapeOpts" class="opt-row hidden">
+        <label>Shape</label>
+        <div class="shape-opts">
+          <button class="shape-opt-btn active" id="shapeFilled" onclick="setShapeMode('filled')">Filled</button>
+          <button class="shape-opt-btn" id="shapeHollow" onclick="setShapeMode('hollow')">Hollow</button>
+        </div>
+      </div>
+      <div class="opt-row" id="strokeWidthRow">
+        <label>Border</label>
+        <input type="range" id="optStrokeWidth" min="1" max="20" value="2" oninput="document.getElementById('strokeVal').textContent=this.value">
+        <span class="val-display" id="strokeVal">2</span>
+      </div>
+      <div class="opt-row" id="textOpts" style="display:none;">
+        <label>Font</label>
+        <select id="optFont">
+          <option>Arial</option><option>Georgia</option><option>Courier New</option>
+          <option>Impact</option><option>Verdana</option><option>Times New Roman</option>
+        </select>
+      </div>
+      <div class="opt-row" id="textSizeRow" style="display:none;">
+        <label>Px</label>
+        <input type="number" id="optFontSize" value="20" min="6" max="200" style="width:54px;">
+        <select id="optFontWeight">
+          <option value="normal">Normal</option>
+          <option value="bold">Bold</option>
+          <option value="italic">Italic</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Layers -->
+    <div id="layersPanel">
+      <div id="layersHeader">
+        <div class="panel-label">Layers</div>
+        <button class="icon-btn" title="Add Layer" onclick="addLayer()">+</button>
+        <button class="icon-btn" title="Add Group" onclick="addGroup()">⊞</button>
+        <button class="icon-btn" title="Delete Layer" onclick="deleteSelectedLayer()">🗑</button>
+      </div>
+      <div id="layersList"></div>
+    </div>
+  </div>
+</div>
+
+<div id="statusBar">
+  <span id="statusMsg">Open a PDF to begin</span>
+  <span id="coordDisplay">x:0 y:0</span>
+</div>
+
+<!-- Layer Context Menu -->
+<div id="layerMenu">
+  <div class="menu-item" onclick="menuDuplicate()">⧉ Duplicate</div>
+  <div class="menu-item" onclick="menuMoveUp()">⬆ Move Up</div>
+  <div class="menu-item" onclick="menuMoveDown()">⬇ Move Down</div>
+  <div class="menu-sep"></div>
+  <div class="menu-item" onclick="menuGroup()">⊞ Group with above</div>
+  <div class="menu-item" onclick="menuUngroup()">⊟ Ungroup</div>
+  <div class="menu-sep"></div>
+  <div class="menu-item" onclick="menuRename()">✎ Rename</div>
+  <div class="menu-item" onclick="menuDelete()" style="color:var(--accent)">🗑 Delete</div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let pdfDoc = null, pdfPage = null, pageNum = 1, totalPages = 1;
+let scale = 1.5, pageW = 0, pageH = 0;
+let tool = 'select', shapeMode = 'filled';
+let layers = [], selectedLayerIdx = -1, layerCounter = 0;
+let undoStack = [], redoStack = [];
+let isDrawing = false, startX = 0, startY = 0, lastX = 0, lastY = 0;
+let currentPath = [];
+let selectedObject = null, dragOffX = 0, dragOffY = 0, isDragging = false;
+let sprayInterval = null;
+let menuTargetIdx = -1;
+
+const pdfCanvas = document.getElementById('pdfCanvas');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const drawingCanvas = document.getElementById('drawingCanvas');
+const pdfCtx = pdfCanvas.getContext('2d');
+const overlayCtx = overlayCanvas.getContext('2d');
+const drawCtx = drawingCanvas.getContext('2d');
+const textInput = document.getElementById('textInput');
+const wrapper = document.getElementById('canvasWrapper');
+
+// ─── TOOL OPTIONS HELPERS ────────────────────────────────────────────────────
+const getColor  = () => document.getElementById('optColor').value;
+const getFill   = () => document.getElementById('optFill').value;
+const getSize   = () => parseInt(document.getElementById('optSize').value);
+const getOpacity= () => parseInt(document.getElementById('optOpacity').value) / 100;
+const getFont   = () => document.getElementById('optFont').value;
+const getFontSz = () => parseInt(document.getElementById('optFontSize').value);
+const getFontW  = () => document.getElementById('optFontWeight').value;
+const getStroke = () => parseInt(document.getElementById('optStrokeWidth').value);
+const getBrush  = () => document.getElementById('optBrushStyle').value;
+
+// ─── PDF LOADING ─────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => loadPDF(ev.target.result);
+  reader.readAsArrayBuffer(f);
+  e.target.value = '';
+});
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') {
+    const reader = new FileReader();
+    reader.onload = ev => loadPDF(ev.target.result);
+    reader.readAsArrayBuffer(f);
+  }
+});
+
+async function loadPDF(arrayBuffer) {
+  showProgress('Loading PDF…');
+  try {
+    const data = new Uint8Array(arrayBuffer);
+    pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+    totalPages = pdfDoc.numPages;
+    pageNum = 1;
+    layers = [];
+    layerCounter = 0;
+    selectedLayerIdx = -1;
+    undoStack = []; redoStack = [];
+    await renderPage();
+    document.getElementById('uploadScreen').classList.add('hidden');
+    status('PDF loaded · ' + totalPages + ' page(s) · Start drawing!');
+  } catch(err) {
+    alert('Could not load PDF: ' + err.message);
+  }
+  hideProgress();
+}
+
+async function renderPage() {
+  pdfPage = await pdfDoc.getPage(pageNum);
+  const vp = pdfPage.getViewport({ scale });
+  pageW = vp.width; pageH = vp.height;
+  [pdfCanvas, overlayCanvas, drawingCanvas].forEach(c => { c.width = pageW; c.height = pageH; });
+  wrapper.style.width = pageW + 'px'; wrapper.style.height = pageH + 'px';
+  await pdfPage.render({ canvasContext: pdfCtx, viewport: vp }).promise;
+  compositeAllLayers();
+  document.getElementById('pageInfo').textContent = `Page ${pageNum} / ${totalPages}`;
+}
+
+function changePage(d) {
+  const n = pageNum + d;
+  if (n < 1 || n > totalPages) return;
+  commitTextIfOpen();
+  pageNum = n;
+  renderPage();
+}
+
+function zoom(d) {
+  scale = Math.max(0.5, Math.min(4, scale + d));
+  document.getElementById('zoomDisplay').textContent = Math.round(scale / 1.5 * 100) + '%';
+  if (pdfPage) renderPage();
+}
+
+// ─── LAYERS ──────────────────────────────────────────────────────────────────
+function addLayer(name) {
+  const c = document.createElement('canvas');
+  c.width = pageW || 800; c.height = pageH || 1100;
+  const layer = {
+    id: ++layerCounter,
+    name: name || `Layer ${layerCounter}`,
+    canvas: c,
+    visible: true,
+    isGroup: false,
+    groupId: null,
+    type: 'draw'
+  };
+  layers.push(layer);
+  selectedLayerIdx = layers.length - 1;
+  renderLayersList();
+  compositeAllLayers();
+  status('Layer added: ' + layer.name);
+  return layer;
+}
+
+function addGroup() {
+  const gId = ++layerCounter;
+  const group = {
+    id: gId,
+    name: `Group ${gId}`,
+    canvas: null,
+    visible: true,
+    isGroup: true,
+    groupId: null,
+    type: 'group',
+    children: []
+  };
+  layers.push(group);
+  selectedLayerIdx = layers.length - 1;
+  renderLayersList();
+}
+
+function getOrCreateLayer() {
+  if (layers.length === 0) return addLayer();
+  if (selectedLayerIdx < 0 || selectedLayerIdx >= layers.length) selectedLayerIdx = layers.length - 1;
+  const l = layers[selectedLayerIdx];
+  if (l.isGroup) return addLayer();
+  return l;
+}
+
+function renderLayersList() {
+  const list = document.getElementById('layersList');
+  list.innerHTML = '';
+  // Render in reverse (top layers at top of list)
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i];
+    const item = document.createElement('div');
+    item.className = 'layer-item' + (i === selectedLayerIdx ? ' selected' : '') + (layer.isGroup ? ' group-header' : '');
+    item.dataset.idx = i;
+
+    // Visibility toggle
+    const vis = document.createElement('span');
+    vis.className = 'layer-vis';
+    vis.textContent = layer.visible ? '👁' : '🚫';
+    vis.title = 'Toggle visibility';
+    vis.onclick = e => { e.stopPropagation(); layer.visible = !layer.visible; renderLayersList(); compositeAllLayers(); };
+
+    // Thumbnail
+    const thumb = document.createElement('div');
+    thumb.className = 'layer-thumb';
+    if (layer.canvas) {
+      const tc = document.createElement('canvas');
+      tc.width = 28; tc.height = 22;
+      tc.getContext('2d').drawImage(layer.canvas, 0, 0, 28, 22);
+      thumb.appendChild(tc);
+    } else {
+      thumb.textContent = '⊞';
+      thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--accent)';
+    }
+
+    // Name
+    const nameEl = document.createElement('span');
+    nameEl.className = 'layer-name';
+    nameEl.textContent = layer.name;
+
+    // Type icon
+    const typeIcon = document.createElement('span');
+    typeIcon.className = 'layer-type-icon';
+    typeIcon.textContent = layer.isGroup ? '⊞' : (layer.type === 'text' ? 'T' : '🖌');
+
+    item.appendChild(vis);
+    item.appendChild(thumb);
+    item.appendChild(nameEl);
+    item.appendChild(typeIcon);
+
+    item.onclick = () => { selectedLayerIdx = i; renderLayersList(); };
+    item.ondblclick = () => startRename(i, nameEl);
+    item.oncontextmenu = e => { e.preventDefault(); menuTargetIdx = i; showLayerMenu(e); };
+
+    list.appendChild(item);
+  }
+}
+
+function startRename(idx, el) {
+  const layer = layers[idx];
+  el.innerHTML = '';
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.value = layer.name;
+  inp.onclick = e => e.stopPropagation();
+  inp.onkeydown = e => {
+    if (e.key === 'Enter' || e.key === 'Escape') { layer.name = inp.value || layer.name; renderLayersList(); }
+  };
+  inp.onblur = () => { layer.name = inp.value || layer.name; renderLayersList(); };
+  el.appendChild(inp);
+  inp.focus(); inp.select();
+}
+
+function deleteSelectedLayer() {
+  if (selectedLayerIdx < 0 || layers.length === 0) return;
+  saveUndo();
+  layers.splice(selectedLayerIdx, 1);
+  selectedLayerIdx = Math.max(0, selectedLayerIdx - 1);
+  if (layers.length === 0) selectedLayerIdx = -1;
+  renderLayersList();
+  compositeAllLayers();
+}
+
+function compositeAllLayers() {
+  overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  layers.forEach(layer => {
+    if (!layer.visible) return;
+    if (layer.isGroup) return;
+    overlayCtx.drawImage(layer.canvas, 0, 0);
+  });
+}
+
+// ─── CONTEXT MENU ────────────────────────────────────────────────────────────
+function showLayerMenu(e) {
+  const menu = document.getElementById('layerMenu');
+  menu.style.display = 'block';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+}
+document.addEventListener('click', () => {
+  document.getElementById('layerMenu').style.display = 'none';
+});
+
+function menuDuplicate() {
+  if (menuTargetIdx < 0) return;
+  saveUndo();
+  const src = layers[menuTargetIdx];
+  const c = document.createElement('canvas');
+  c.width = src.canvas.width; c.height = src.canvas.height;
+  c.getContext('2d').drawImage(src.canvas, 0, 0);
+  const copy = { ...src, id: ++layerCounter, name: src.name + ' copy', canvas: c };
+  layers.splice(menuTargetIdx + 1, 0, copy);
+  selectedLayerIdx = menuTargetIdx + 1;
+  renderLayersList(); compositeAllLayers();
+}
+function menuMoveUp() {
+  if (menuTargetIdx >= layers.length - 1) return;
+  saveUndo();
+  [layers[menuTargetIdx], layers[menuTargetIdx+1]] = [layers[menuTargetIdx+1], layers[menuTargetIdx]];
+  selectedLayerIdx = menuTargetIdx + 1;
+  renderLayersList(); compositeAllLayers();
+}
+function menuMoveDown() {
+  if (menuTargetIdx <= 0) return;
+  saveUndo();
+  [layers[menuTargetIdx], layers[menuTargetIdx-1]] = [layers[menuTargetIdx-1], layers[menuTargetIdx]];
+  selectedLayerIdx = menuTargetIdx - 1;
+  renderLayersList(); compositeAllLayers();
+}
+function menuGroup() {
+  if (menuTargetIdx < 0 || menuTargetIdx >= layers.length - 1) return;
+  saveUndo();
+  const gId = ++layerCounter;
+  const group = { id: gId, name: `Group ${gId}`, canvas: null, visible: true, isGroup: true, type: 'group' };
+  const below = layers[menuTargetIdx];
+  const above = layers[menuTargetIdx + 1];
+  below.groupId = gId; above.groupId = gId;
+  layers.splice(menuTargetIdx, 0, group);
+  selectedLayerIdx = menuTargetIdx;
+  renderLayersList();
+}
+function menuUngroup() {
+  if (menuTargetIdx < 0) return;
+  const layer = layers[menuTargetIdx];
+  if (!layer.isGroup) { if (layer.groupId) { layer.groupId = null; renderLayersList(); } return; }
+  saveUndo();
+  layers.forEach(l => { if (l.groupId === layer.id) l.groupId = null; });
+  layers.splice(menuTargetIdx, 1);
+  selectedLayerIdx = Math.max(0, menuTargetIdx - 1);
+  renderLayersList();
+}
+function menuRename() { if (menuTargetIdx < 0) return; selectedLayerIdx = menuTargetIdx; renderLayersList(); setTimeout(() => { const items = document.querySelectorAll('.layer-item'); items.forEach(el => { if (parseInt(el.dataset.idx) === menuTargetIdx) { const nameEl = el.querySelector('.layer-name'); startRename(menuTargetIdx, nameEl); } }); }, 50); }
+function menuDelete() { selectedLayerIdx = menuTargetIdx; deleteSelectedLayer(); }
+
+// ─── TOOL SWITCHING ───────────────────────────────────────────────────────────
+function setTool(t) {
+  commitTextIfOpen();
+  tool = t;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('tool-' + t);
+  if (btn) btn.classList.add('active');
+
+  const shapeTools = ['rect','ellipse','line','arrow'];
+  const drawTools = ['brush','pencil','eraser'];
+
+  document.getElementById('shapeOpts').classList.toggle('hidden', !shapeTools.includes(t));
+  document.getElementById('strokeWidthRow').classList.toggle('hidden', !shapeTools.includes(t));
+  document.getElementById('brushStyleRow').style.display = drawTools.includes(t) ? '' : 'none';
+  document.getElementById('textOpts').style.display = (t === 'text') ? '' : 'none';
+  document.getElementById('textSizeRow').style.display = (t === 'text') ? '' : 'none';
+
+  drawingCanvas.style.cursor = t === 'eraser' ? 'cell' : (t === 'text' ? 'text' : (t === 'select' ? 'default' : 'crosshair'));
+}
+
+function setShapeMode(m) {
+  shapeMode = m;
+  document.getElementById('shapeFilled').classList.toggle('active', m === 'filled');
+  document.getElementById('shapeHollow').classList.toggle('active', m === 'hollow');
+}
+
+// ─── CANVAS DRAWING EVENTS ────────────────────────────────────────────────────
+function canvasXY(e) {
+  const r = drawingCanvas.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+  return { x: touch.clientX - r.left, y: touch.clientY - r.top };
+}
+
+drawingCanvas.addEventListener('mousedown', onPointerDown);
+drawingCanvas.addEventListener('mousemove', onPointerMove);
+drawingCanvas.addEventListener('mouseup', onPointerUp);
+drawingCanvas.addEventListener('mouseleave', onPointerUp);
+drawingCanvas.addEventListener('touchstart', e => { e.preventDefault(); onPointerDown(e); }, { passive: false });
+drawingCanvas.addEventListener('touchmove', e => { e.preventDefault(); onPointerMove(e); }, { passive: false });
+drawingCanvas.addEventListener('touchend', onPointerUp);
+
+function onPointerDown(e) {
+  const { x, y } = canvasXY(e);
+  startX = x; startY = y; lastX = x; lastY = y;
+
+  if (tool === 'text') { handleTextPlacement(x, y); return; }
+  if (tool === 'fill') { handleFill(x, y); return; }
+
+  commitTextIfOpen();
+  isDrawing = true;
+  saveUndo();
+
+  const layer = getOrCreateLayer();
+  const ctx = layer.canvas.getContext('2d');
+  ctx.globalAlpha = getOpacity();
+  ctx.strokeStyle = getColor();
+  ctx.fillStyle = getFill();
+  ctx.lineWidth = getSize();
+  ctx.lineCap = getBrush() === 'square' ? 'square' : 'round';
+  ctx.lineJoin = 'round';
+
+  if (['brush','pencil'].includes(tool)) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    // Dot on click
+    ctx.arc(x, y, getSize()/2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    if (tool === 'brush' && getBrush() === 'spray') {
+      sprayDraw(ctx, x, y);
+      sprayInterval = setInterval(() => sprayDraw(ctx, lastX, lastY), 30);
+    }
+  } else if (tool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, getSize(), 0, Math.PI*2);
+    ctx.fill();
+  }
+  currentPath = [{ x, y }];
+}
+
+function onPointerMove(e) {
+  const { x, y } = canvasXY(e);
+  document.getElementById('coordDisplay').textContent = `x:${Math.round(x)} y:${Math.round(y)}`;
+
+  if (!isDrawing) return;
+
+  const layer = getOrCreateLayer();
+  const ctx = layer.canvas.getContext('2d');
+
+  if (['brush','pencil'].includes(tool)) {
+    if (getBrush() === 'spray' && tool === 'brush') { lastX = x; lastY = y; return; }
+    ctx.globalAlpha = getOpacity();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.lineWidth = tool === 'pencil' ? getSize() * 0.5 : getSize();
+    ctx.lineCap = getBrush() === 'square' ? 'square' : 'round';
+    ctx.strokeStyle = getColor();
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  } else if (tool === 'eraser') {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, getSize(), 0, Math.PI*2);
+    ctx.fill();
+  } else {
+    // Shape preview on draw canvas
+    drawCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+    drawCtx.globalAlpha = getOpacity();
+    drawCtx.strokeStyle = getColor();
+    drawCtx.fillStyle = getFill();
+    drawCtx.lineWidth = getStroke();
+    drawShapePreview(drawCtx, startX, startY, x, y);
+  }
+
+  lastX = x; lastY = y;
+  compositeAllLayers();
+}
+
+function onPointerUp(e) {
+  if (!isDrawing) return;
+  isDrawing = false;
+  clearInterval(sprayInterval);
+
+  if (['rect','ellipse','line','arrow'].includes(tool)) {
+    const layer = getOrCreateLayer();
+    const ctx = layer.canvas.getContext('2d');
+    ctx.globalAlpha = getOpacity();
+    ctx.strokeStyle = getColor();
+    ctx.fillStyle = getFill();
+    ctx.lineWidth = getStroke();
+    drawShapePreview(ctx, startX, startY, lastX, lastY);
+    drawCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+  }
+
+  const layer = getOrCreateLayer();
+  const ctx = layer.canvas.getContext('2d');
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  compositeAllLayers();
+  renderLayersList();
+}
+
+function drawShapePreview(ctx, x1, y1, x2, y2) {
+  const w = x2 - x1, h = y2 - y1;
+  ctx.beginPath();
+  switch(tool) {
+    case 'rect':
+      if (shapeMode === 'filled') { ctx.fillRect(x1, y1, w, h); }
+      ctx.strokeRect(x1, y1, w, h);
+      break;
+    case 'ellipse':
+      ctx.ellipse(x1 + w/2, y1 + h/2, Math.abs(w/2), Math.abs(h/2), 0, 0, Math.PI*2);
+      if (shapeMode === 'filled') ctx.fill();
+      ctx.stroke();
+      break;
+    case 'line':
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      break;
+    case 'arrow':
+      drawArrow(ctx, x1, y1, x2, y2);
+      break;
+  }
+}
+
+function drawArrow(ctx, x1, y1, x2, y2) {
+  const headLen = Math.max(12, getStroke() * 4);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI/7), y2 - headLen * Math.sin(angle - Math.PI/7));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI/7), y2 - headLen * Math.sin(angle + Math.PI/7));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function sprayDraw(ctx, x, y) {
+  const r = getSize() * 2;
+  const density = Math.ceil(r * 0.8);
+  ctx.fillStyle = getColor();
+  ctx.globalAlpha = getOpacity() * 0.06;
+  for (let i = 0; i < density; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = Math.random() * r;
+    ctx.fillRect(x + d * Math.cos(a), y + d * Math.sin(a), 1.5, 1.5);
+  }
+  ctx.globalAlpha = 1;
+  compositeAllLayers();
+}
+
+// ─── FILL TOOL ────────────────────────────────────────────────────────────────
+function handleFill(x, y) {
+  const layer = getOrCreateLayer();
+  const ctx = layer.canvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+  const px = Math.round(x), py = Math.round(y);
+  const target = getPixel(imgData, px, py);
+  const fill = hexToRgba(getFill(), getOpacity());
+  if (colorsMatch(target, fill)) return;
+  saveUndo();
+  floodFill(imgData, px, py, target, fill);
+  ctx.putImageData(imgData, 0, 0);
+  compositeAllLayers(); renderLayersList();
+}
+function getPixel(d, x, y) { const i = (y * d.width + x) * 4; return [d.data[i], d.data[i+1], d.data[i+2], d.data[i+3]]; }
+function setPixel(d, x, y, c) { const i = (y * d.width + x) * 4; d.data[i]=c[0]; d.data[i+1]=c[1]; d.data[i+2]=c[2]; d.data[i+3]=c[3]; }
+function colorsMatch(a, b, tol=30) { return Math.abs(a[0]-b[0])<tol && Math.abs(a[1]-b[1])<tol && Math.abs(a[2]-b[2])<tol && Math.abs(a[3]-b[3])<tol; }
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return [r, g, b, Math.round(alpha*255)];
+}
+function floodFill(imgData, x, y, target, fill) {
+  const w = imgData.width, h = imgData.height;
+  const stack = [[x, y]]; const visited = new Uint8Array(w * h);
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cx >= w || cy < 0 || cy >= h) continue;
+    if (visited[cy*w+cx]) continue;
+    const c = getPixel(imgData, cx, cy);
+    if (!colorsMatch(c, target)) continue;
+    visited[cy*w+cx] = 1;
+    setPixel(imgData, cx, cy, fill);
+    stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+  }
+}
+
+// ─── TEXT TOOL ────────────────────────────────────────────────────────────────
+function handleTextPlacement(x, y) {
+  commitTextIfOpen();
+  textInput.style.display = 'block';
+  textInput.style.left = x + 'px';
+  textInput.style.top = y + 'px';
+  textInput.style.fontSize = getFontSz() + 'px';
+  textInput.style.fontFamily = getFont();
+  textInput.style.fontWeight = getFontW() === 'bold' ? 'bold' : 'normal';
+  textInput.style.fontStyle = getFontW() === 'italic' ? 'italic' : 'normal';
+  textInput.style.color = getColor();
+  textInput.value = '';
+  textInput.focus();
+}
+
+function commitTextIfOpen() {
+  if (textInput.style.display !== 'block') return;
+  const txt = textInput.value.trim();
+  if (txt) {
+    const layer = getOrCreateLayer();
+    layer.type = 'text';
+    const ctx = layer.canvas.getContext('2d');
+    const x = parseInt(textInput.style.left);
+    const y = parseInt(textInput.style.top);
+    const sz = getFontSz();
+    ctx.globalAlpha = getOpacity();
+    ctx.fillStyle = getColor();
+    const w = getFontW();
+    ctx.font = `${w === 'italic' ? 'italic' : (w === 'bold' ? 'bold' : '')} ${sz}px ${getFont()}`;
+    const lines = txt.split('\n');
+    lines.forEach((line, i) => ctx.fillText(line, x, y + sz + i * sz * 1.3));
+    ctx.globalAlpha = 1;
+    compositeAllLayers(); renderLayersList();
+  }
+  textInput.style.display = 'none';
+  textInput.value = '';
+}
+
+textInput.addEventListener('keydown', e => { if (e.key === 'Escape') { textInput.style.display='none'; textInput.value=''; } });
+
+// ─── UNDO / REDO ─────────────────────────────────────────────────────────────
+function saveUndo() {
+  const snap = layers.map(l => ({
+    ...l,
+    canvas: l.canvas ? (() => { const c = document.createElement('canvas'); c.width = l.canvas.width; c.height = l.canvas.height; c.getContext('2d').drawImage(l.canvas, 0, 0); return c; })() : null
+  }));
+  undoStack.push(snap);
+  if (undoStack.length > 30) undoStack.shift();
+  redoStack = [];
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  const snap = layers.map(l => ({ ...l, canvas: l.canvas ? (() => { const c = document.createElement('canvas'); c.width = l.canvas.width; c.height = l.canvas.height; c.getContext('2d').drawImage(l.canvas, 0, 0); return c; })() : null }));
+  redoStack.push(snap);
+  layers = undoStack.pop();
+  selectedLayerIdx = Math.min(selectedLayerIdx, layers.length - 1);
+  renderLayersList(); compositeAllLayers(); status('Undo');
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  const snap = layers.map(l => ({ ...l, canvas: l.canvas ? (() => { const c = document.createElement('canvas'); c.width = l.canvas.width; c.height = l.canvas.height; c.getContext('2d').drawImage(l.canvas, 0, 0); return c; })() : null }));
+  undoStack.push(snap);
+  layers = redoStack.pop();
+  renderLayersList(); compositeAllLayers(); status('Redo');
+}
+
+// ─── DOWNLOAD PDF ────────────────────────────────────────────────────────────
+async function flattenAndDownload() {
+  if (!pdfDoc) { alert('Please open a PDF first.'); return; }
+  commitTextIfOpen();
+  showProgress('Generating PDF…');
+
+  try {
+    const { jsPDF } = window.jspdf;
+
+    // We'll create a PDF that has all pages, with annotations on top
+    const flatCanvas = document.createElement('canvas');
+    flatCanvas.width = pageW; flatCanvas.height = pageH;
+    const flatCtx = flatCanvas.getContext('2d');
+
+    // Draw PDF page
+    flatCtx.drawImage(pdfCanvas, 0, 0);
+    // Draw all visible layers
+    layers.forEach(l => { if (l.visible && l.canvas) flatCtx.drawImage(l.canvas, 0, 0); });
+
+    const imgData = flatCanvas.toDataURL('image/jpeg', 0.92);
+    const pxToMm = 25.4 / 96;
+    const wMm = pageW * pxToMm / (scale / 1.5);
+    const hMm = pageH * pxToMm / (scale / 1.5);
+
+    const pdf = new jsPDF({ orientation: wMm > hMm ? 'l' : 'p', unit: 'mm', format: [wMm, hMm] });
+    pdf.addImage(imgData, 'JPEG', 0, 0, wMm, hMm);
+
+    // Add remaining pages unmodified
+    for (let p = 1; p <= totalPages; p++) {
+      if (p === pageNum) continue;
+      const pg = await pdfDoc.getPage(p);
+      const vp = pg.getViewport({ scale });
+      const tmpC = document.createElement('canvas');
+      tmpC.width = vp.width; tmpC.height = vp.height;
+      await pg.render({ canvasContext: tmpC.getContext('2d'), viewport: vp }).promise;
+      const pMm_w = vp.width * pxToMm / (scale / 1.5);
+      const pMm_h = vp.height * pxToMm / (scale / 1.5);
+      pdf.addPage([pMm_w, pMm_h]);
+      pdf.addImage(tmpC.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, pMm_w, pMm_h);
+    }
+
+    pdf.save('edited-document.pdf');
+    status('PDF downloaded!');
+  } catch(err) {
+    alert('Export failed: ' + err.message);
+    console.error(err);
+  }
+  hideProgress();
+}
+
+// ─── PROGRESS ────────────────────────────────────────────────────────────────
+function showProgress(msg) {
+  let overlay = document.getElementById('progressOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'progressOverlay';
+    overlay.className = 'progress-overlay';
+    overlay.innerHTML = `<div class="progress-box"><p id="progressMsg"></p><div class="spinner"></div></div>`;
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('progressMsg').textContent = msg;
+  overlay.style.display = 'flex';
+}
+function hideProgress() {
+  const o = document.getElementById('progressOverlay');
+  if (o) o.style.display = 'none';
+}
+function status(msg) { document.getElementById('statusMsg').textContent = msg; }
+
+// ─── KEYBOARD SHORTCUTS ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (document.activeElement === textInput) return;
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); flattenAndDownload(); return; }
+  const map = { v:'select', b:'brush', p:'pencil', e:'eraser', t:'text', r:'rect', o:'ellipse', l:'line', a:'arrow' };
+  if (!e.ctrlKey && !e.metaKey && map[e.key]) setTool(map[e.key]);
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (document.activeElement !== textInput) { e.preventDefault(); deleteSelectedLayer(); } }
+});
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+setTool('select');
+</script>
+</body>
+</html>
